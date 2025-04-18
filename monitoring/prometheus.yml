@@ -1,0 +1,44 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Prometheus self‑scraping
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['prometheus:9090']
+
+  # Host metrics via Node Exporter
+  - job_name: 'node-exporter'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # NVIDIA GPU metrics via DCGM Exporter
+  - job_name: 'dcgm-exporter'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['dcgm-exporter:9400']
+
+  # Container resource usage via cAdvisor
+  - job_name: 'cadvisor'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  # StyleGAN2‑ADA training workloads
+  - job_name: 'stylegan-training'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets:
+          - 'train-auto:8000'
+          - 'train-cifar:8000'
+          - 'train-mixed:8000'
+
+  # StyleGAN2‑ADA inference workloads
+  - job_name: 'stylegan-inference'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets:
+          - 'infer-standard:8001'
+          - 'infer-vector:8001'
