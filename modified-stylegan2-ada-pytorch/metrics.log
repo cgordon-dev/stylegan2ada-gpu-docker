@@ -1,0 +1,10 @@
+▶︎ Pre‑flight checks…
+  • PyTorch CUDA version: 11.0 (major=11)
+  ✓ Python sees libcudart.so.11 (libcudart.so.11.0)
+  ✓ PyTorch built for CUDA 11.0
+  ✓ metrics.calc_metrics module importable
+  ✓ Found 20 snapshot(s)
+▶︎ All pre‑flight checks passed.
+
+=== Evaluating snapshot: outputs/train-mixed/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl ===
+  → writing JSONL to results/metrics/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom.jsonl

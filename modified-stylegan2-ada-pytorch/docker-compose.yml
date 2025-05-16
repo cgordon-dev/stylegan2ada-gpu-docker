@@ -1,0 +1,282 @@
+x-common-train: &common-train
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: stylegan2-ada:train
+  gpus: all
+  working_dir: /workspace
+  volumes:
+    - ./datasets:/workspace/datasets:ro
+    - ./outputs:/workspace/outputs
+  networks:
+    - monitoring_net
+  environment:
+    - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
+
+x-common-utils: &common-utils
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: stylegan2-ada:utils
+  gpus: all
+  working_dir: /workspace
+  volumes:
+    - ./datasets:/workspace/datasets:ro
+    - ./outputs:/workspace/outputs
+  networks:
+    - monitoring_net
+
+services:
+  ########################################
+  # 1) Baseline training (“auto” cfg)    #
+  ########################################
+  train-auto:
+    <<: *common-train
+    container_name: train-auto
+    volumes:
+      - ./datasets:/workspace/datasets:ro   # ← ensure this is here
+      - ./outputs:/workspace/outputs
+    command:
+      - bash
+      - "-lc"
+      - |
+          set -e
+          mkdir -p /workspace/results/timings
+          START=$(date +%s)
+          python train.py \
+            --outdir=/workspace/outputs/train-auto \
+            --data=/workspace/datasets/cifar10_images \
+            --gpus=1 \
+            --cfg=cifar \
+            --batch=4 \
+            --snap=5 \
+            --kimg=100 \
+            --aug=ada \
+            --target=0.7 \
+            --metrics=fid50k_full \
+            --nhwc=1
+          echo $(( $(date +%s) - START )) > /workspace/results/timings/train-auto.sec
+
+  ########################################
+  # 2) Fine‑tune on CIFAR‑10            #
+  ########################################
+  train-cifar:
+    <<: *common-train
+    container_name: train-cifar
+    depends_on:
+      - train-auto
+    command:
+      - bash
+      - "-lc"
+      - |
+          set -e
+          mkdir -p /workspace/results/timings
+          RESUME=$$(ls -1v /workspace/outputs/train-auto/*/network-snapshot-*.pkl | tail -n1)
+          echo "Resuming from $$RESUME"
+          START=$(date +%s)
+          python train.py \
+            --outdir=/workspace/outputs/train-cifar \
+            --data=/workspace/datasets/cifar10.zip \
+            --resume="$$RESUME" \
+            --gpus=1 \
+            --cfg=auto \
+            --batch=4 \
+            --snap=5 \
+            --kimg=100 \
+            --aug=ada \
+            --target=0.7 \
+            --metrics=none \
+            --nhwc=1
+          echo $(( $(date +%s) - START )) > /workspace/results/timings/train-cifar.sec
+
+  ########################################
+  # 3) Mixed‑precision training         #
+  ########################################
+  train-mixed:
+    <<: *common-train
+    container_name: train-mixed
+    depends_on:
+      - train-cifar
+    command:
+      - bash
+      - "-lc"
+      - |
+          set -e
+          mkdir -p /workspace/results/timings
+          # wait for train-cifar to finish
+          while true; do
+            CANDIDATE=$$(ls -1v /workspace/outputs/train-cifar/*/network-snapshot-*.pkl 2>/dev/null | tail -n1)
+            [ -f "$$CANDIDATE" ] && { RESUME="$$CANDIDATE"; break; }
+            echo "❗ waiting for train-cifar snapshot…"; sleep 5
+          done
+          echo "Resuming from $$RESUME"
+          START=$(date +%s)
+          python train.py \
+            --outdir=/workspace/outputs/train-mixed \
+            --data=/workspace/datasets/cifar10.zip \
+            --resume="$$RESUME" \
+            --gpus=1 \
+            --cfg=cifar \
+            --batch=2 \
+            --snap=5 \
+            --kimg=100 \
+            --aug=ada \
+            --target=0.7 \
+            --metrics=none \
+            --nhwc=1
+          echo $(( $(date +%s) - START )) > /workspace/results/timings/train-mixed.sec
+
+  ########################################
+  # 4) Generate sample images           #
+  ########################################
+  generate:
+    <<: *common-utils
+    container_name: generate
+    depends_on:
+      - train-mixed
+    volumes:
+      - ./outputs:/workspace/outputs
+      - ./results:/workspace/results
+    command:
+      - bash
+      - "-lc"
+      - |
+          set -euo pipefail
+          mkdir -p /workspace/results/timings /workspace/results/generated
+          echo "# TYPE  SNAPSHOT  DURATION_s" > /workspace/results/timings/generate_times.txt
+          for TYPE in train-auto; do
+            SNAP=$$(ls -1v /workspace/outputs/$$TYPE/*/network-snapshot-*.pkl | tail -n1)
+            if [ -z "$$SNAP" ]; then
+              echo "⚠️  No snapshots for $$TYPE, skipping" >&2
+              continue
+            fi
+            OUT="/workspace/results/generated/$$TYPE/$$(basename "$${SNAP%.pkl}")"
+            mkdir -p "$$OUT"
+            echo "⏱ Generating from $$(basename "$$SNAP") for $$TYPE…"
+            START=$$(date +%s)
+            python generate.py \
+              --network "$$SNAP" \
+              --seeds=0-9 \
+              --trunc=0.5 \
+              --outdir "$$OUT"
+            DUR=$$(( $$(date +%s) - START ))
+            printf "%s  %s  %d\n" "$$TYPE" "$$(basename "$$SNAP")" "$$DUR" \
+              >> /workspace/results/timings/generate_times.txt
+          done
+          echo "✅ Done — timings in /workspace/results/timings/generate_times.txt"
+
+  ########################################
+  # 5) Latent‑vector projection         #
+  ########################################
+  project:
+    <<: *common-utils
+    container_name: project
+    depends_on:
+      - train-mixed
+    gpus: all 
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - ./outputs:/workspace/outputs
+      - ./datasets:/workspace/datasets
+    command:
+      - bash
+      - "-lc"
+      - |
+          set -e
+          mkdir -p /workspace/results/timings /workspace/results/proj
+          unzip -n /workspace/datasets/cifar10_raw.zip -d /workspace/datasets/cifar10
+          TARGET=/workspace/datasets/cifar10_images/00000.png
+          START=$(date +%s)
+          for TYPE in train-auto; do
+            for SNAP in /workspace/outputs/$$TYPE/*/*.pkl; do
+              OUT=/workspace/results/proj/$$TYPE/$(basename "$$SNAP" .pkl)
+              mkdir -p "$$OUT"
+              python projector.py \
+                --network "$$SNAP" \
+                --target "$$TARGET" \
+                --outdir "$$OUT" \
+                --num-steps 200
+            done
+          done
+          echo $(( $(date +%s) - $$START )) > /workspace/results/timings/project.sec
+
+  ########################################
+  # 6) Compute offline metrics           #
+  ########################################
+  evaluate:
+    <<: *common-utils
+    container_name: evaluate
+    gpus: all
+    depends_on:
+      - train-mixed
+    volumes:
+      - ./outputs:/workspace/outputs
+      - ./datasets:/workspace/datasets:ro
+      - ./results:/workspace/results
+    command:
+      - bash
+      - "-lc"
+      - |
+          set -euo pipefail
+          METRICS="pr50k3_full"
+          mkdir -p /workspace/results/metrics /workspace/results/timings
+          echo "# TYPE  SNAPSHOT  DURATION_s" > /workspace/results/timings/evaluate_times.txt
+
+          for TYPE in train-auto; do
+            SNAP=$$(ls -1v /workspace/outputs/$$TYPE/*/network-snapshot-*.pkl | tail -n1)
+            [ -z "$$SNAP" ] && { >&2 echo "⚠️  No snapshot for $$TYPE, skipping"; continue; }
+
+            OUT_DIR=/workspace/results/metrics/$$TYPE
+            mkdir -p "$$OUT_DIR"
+            OUT_FILE="$$OUT_DIR/$$(basename "$${SNAP%.pkl}").txt"
+
+            echo "⏱ Evaluating $$TYPE from $$(basename "$$SNAP")…"
+            START=$$(date +%s)
+
+            # Use the exact form you showed: no --mirror, only --metrics and --network
+            python -m metrics.calc_metrics \
+              --metrics="$$METRICS" \
+              --network="$$SNAP" \
+            | tee "$$OUT_FILE"
+
+            DUR=$$(( $$(date +%s) - $$START ))
+            printf "%s  %s  %d\n" "$$TYPE" "$$(basename "$$SNAP")" "$$DUR" \
+              >> /workspace/results/timings/evaluate_times.txt
+          done
+
+          echo "✅ Evaluation complete. See /workspace/results/timings/evaluate_times.txt"
+
+  ########################################
+  # 7) Upload everything to S3          #
+  ########################################
+  uploader:
+    <<: *common-utils
+    container_name: uploader
+    depends_on:
+      - evaluate
+    command:
+      - bash
+      - "-lc"
+      - |
+          set -e
+          python upload_to_s3.py
+
+  ########################################
+  # 8) Compute AEY report                #
+  ########################################
+  report:
+    <<: *common-utils
+    container_name: report
+    depends_on:
+      - uploader
+    command:
+      - bash
+      - "-lc"
+      - |
+          set -e
+          python report.py
+
+networks:
+  monitoring_net:
+    driver: bridge

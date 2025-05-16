@@ -1,0 +1,42 @@
++ shopt -s nullglob
++ PYTHON=/home/ubuntu/miniconda3/envs/stylegan2-ada/bin/python
++ METRICS=fid50k_full,kid50k_full,pr50k3_full
++ mkdir -p results/metrics
+++ pwd
++ echo 'Current directory: /home/ubuntu/stylegan2-docker/stylegan2-ada-pytorch'
+Current directory: /home/ubuntu/stylegan2-docker/stylegan2-ada-pytorch
+++ pwd
++ echo 'Looking for snapshots in: /home/ubuntu/stylegan2-docker/stylegan2-ada-pytorch/outputs/train-mixed/*/network-snapshot-*.pkl'
+Looking for snapshots in: /home/ubuntu/stylegan2-docker/stylegan2-ada-pytorch/outputs/train-mixed/*/network-snapshot-*.pkl
++ ls -d outputs/train-mixed/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl outputs/train-mixed/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000020.pkl outputs/train-mixed/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000040.pkl outputs/train-mixed/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000060.pkl outputs/train-mixed/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000080.pkl outputs/train-mixed/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000100.pkl outputs/train-mixed/00039-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl outputs/train-mixed/00039-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000020.pkl outputs/train-mixed/00039-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000040.pkl outputs/train-mixed/00040-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl outputs/train-mixed/00041-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl outputs/train-mixed/00042-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl outputs/train-mixed/00043-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl outputs/train-mixed/00044-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl outputs/train-mixed/00045-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl outputs/train-mixed/00045-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000020.pkl outputs/train-mixed/00045-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000040.pkl outputs/train-mixed/00045-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000060.pkl outputs/train-mixed/00045-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000080.pkl outputs/train-mixed/00045-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000100.pkl
+outputs/train-mixed/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl
+outputs/train-mixed/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000020.pkl
+outputs/train-mixed/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000040.pkl
+outputs/train-mixed/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000060.pkl
+outputs/train-mixed/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000080.pkl
+outputs/train-mixed/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000100.pkl
+outputs/train-mixed/00039-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl
+outputs/train-mixed/00039-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000020.pkl
+outputs/train-mixed/00039-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000040.pkl
+outputs/train-mixed/00040-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl
+outputs/train-mixed/00041-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl
+outputs/train-mixed/00042-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl
+outputs/train-mixed/00043-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl
+outputs/train-mixed/00044-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl
+outputs/train-mixed/00045-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl
+outputs/train-mixed/00045-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000020.pkl
+outputs/train-mixed/00045-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000040.pkl
+outputs/train-mixed/00045-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000060.pkl
+outputs/train-mixed/00045-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000080.pkl
+outputs/train-mixed/00045-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000100.pkl
++ for SNAP in outputs/train-mixed/*/network-snapshot-*.pkl
++ [[ -f outputs/train-mixed/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl ]]
++ echo '=== Evaluating snapshot: outputs/train-mixed/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl ==='
+=== Evaluating snapshot: outputs/train-mixed/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl ===
++++ dirname outputs/train-mixed/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl
+++ basename outputs/train-mixed/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom
++ RUN_NAME=00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom
++ OUT_FILE=results/metrics/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom.jsonl
++ echo '  → writing JSONL to results/metrics/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom.jsonl'
+  → writing JSONL to results/metrics/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom.jsonl
++ /home/ubuntu/miniconda3/envs/stylegan2-ada/bin/python -m metrics.calc_metrics --metrics=fid50k_full,kid50k_full,pr50k3_full --network=outputs/train-mixed/00038-cifar10-cifar-kimg100-batch2-ada-target0.7-resumecustom/network-snapshot-000000.pkl --data=datasets/cifar10.zip --mirror=1

@@ -1,0 +1,192 @@
+# docker-compose.yml
+
+networks:
+  monitoring_net:
+    driver: bridge
+
+services:
+  ########################
+  # 1) TRAINING SERVICES #
+  ########################
+
+  train-auto:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: stylegan2-ada:train-auto
+    working_dir: /workspace
+    volumes:
+      - ./datasets:/workspace/datasets:ro
+      - ./outputs:/workspace/results
+    ports:
+      - "8000:8000"         # metrics endpoint
+    networks:
+      - monitoring_net
+    command:
+      - bash
+      - -lc
+      - |
+        python train_with_prometheus.py --metrics-port=8000 \
+          --outdir=/workspace/results/train-auto \
+          --gpus=1 \
+          --data=/workspace/datasets/cifar10.zip \
+          --cfg=auto \
+          --batch=4 \
+          --snap=10 \
+          --kimg=200 \
+          --aug=ada \
+          --target=0.7 \
+          --metrics=none \
+          --nhwc=1 \
+          --allow-tf32=1 \
+        && touch /workspace/results/train-auto/.done
+        
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+  train-cifar:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: stylegan2-ada:train-cifar
+    working_dir: /workspace
+    volumes:
+      - ./datasets:/workspace/datasets:ro
+      - ./outputs:/workspace/results
+    ports:
+      - "8001:8000"
+    networks:
+      - monitoring_net
+    depends_on:
+      - train-auto
+    command:
+      - bash
+      - -lc
+      - |
+        while [ ! -f /workspace/results/train-auto/.done ]; do sleep 10; done && \
+        python train_with_prometheus.py --metrics-port=8000 \
+          --outdir=/workspace/results/train-cifar \
+          --gpus=1 \
+          --data=/workspace/datasets/cifar10.zip \
+          --cfg=cifar \
+          --batch=4 \
+          --snap=10 \
+          --kimg=200 \
+          --aug=ada \
+          --target=0.7 \
+          --metrics=none \
+          --nhwc=1 \
+          --allow-tf32=1 \
+        && touch /workspace/results/train-cifar/.done
+    
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+  train-mixed:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: stylegan2-ada:train-mixed
+    working_dir: /workspace
+    volumes:
+      - ./datasets:/workspace/datasets:ro
+      - ./outputs:/workspace/results
+    ports:
+      - "8002:8000"
+    networks:
+      - monitoring_net
+    depends_on:
+      - train-cifar
+    command:
+      - bash
+      - -lc
+      - |
+        while [ ! -f /workspace/results/train-cifar/.done ]; do sleep 10; done && \
+        python train_with_prometheus.py --metrics-port=8000 \
+          --outdir=/workspace/results/train-mixed \
+          --gpus=1 \
+          --data=/workspace/datasets/cifar10.zip \
+          --cfg=auto \
+          --batch=4 \
+          --snap=10 \
+          --kimg=200 \
+          --aug=ada \
+          --target=0.7 \
+          --metrics=none \
+          --nhwc=1 \
+          --allow-tf32=1 \
+        && touch /workspace/results/train-mixed/.done
+        
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+  ##########################
+  # 2) INFERENCE SERVICES  #
+  ##########################
+
+  infer-standard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: stylegan2-ada:infer-standard
+    working_dir: /workspace
+    volumes:
+      - ./outputs:/workspace/results
+      - ./scripts:/workspace/scripts:ro
+    ports:
+      - "8003:8001"
+    networks:
+      - monitoring_net
+    entrypoint:
+      - bash
+      - -lc
+      - "/workspace/scripts/wait_for_snapshot.sh"
+
+  infer-vector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: stylegan2-ada:infer-vector
+    working_dir: /workspace
+    volumes:
+      - ./outputs:/workspace/results
+      - ./scripts:/workspace/scripts:ro
+    ports:
+      - "8004:8001"
+    networks:
+      - monitoring_net
+    entrypoint:
+      - bash
+      - -lc
+      - "/workspace/scripts/wait_for_snapshot_vector.sh"
+
+  ###########################
+  # 3) ASYNC METRICS WATCHER #
+  ###########################
+
+  metrics-watcher:
+    image: python:3.10-slim
+    depends_on:
+      - train-auto
+      - train-cifar
+      - train-mixed
+    working_dir: /workspace
+    volumes:
+      - ./datasets:/workspace/datasets:ro
+      - ./outputs:/workspace/results
+      - ./metrics:/metrics:ro
+    environment:
+      - METRICS=fid50k_full,kid50k_full
+      - SLEEP_INTERVAL=300
+    networks:
+      - monitoring_net
+    entrypoint:
+      - bash
+      - -lc
+      - "/metrics/monitor.sh"
