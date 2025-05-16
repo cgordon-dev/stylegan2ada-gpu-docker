@@ -25,20 +25,3 @@ scrape_configs:
     metrics_path: '/metrics'
     static_configs:
       - targets: ['cadvisor:8080']
-
-  # StyleGAN2‑ADA training workloads
-  - job_name: 'stylegan-training'
-    metrics_path: '/metrics'
-    static_configs:
-      - targets:
-          - 'train-auto:8000'
-          - 'train-cifar:8001'
-          - 'train-mixed:8002'
-
-  # StyleGAN2‑ADA inference workloads
-  - job_name: 'stylegan-inference'
-    metrics_path: '/metrics'
-    static_configs:
-      - targets:
-          - 'infer-standard:8003'
-          - 'infer-vector:8004'
